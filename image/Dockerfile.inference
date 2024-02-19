@@ -1,0 +1,37 @@
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+# Install necessary dependencies along with nginx
+RUN apt-get update && apt-get -y install --no-install-recommends \
+    git \
+    python3.10 \
+    python3-pip \
+    nginx \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
+
+# Set some environment variables. PYTHONUNBUFFERED keeps Python from buffering our standard
+# output stream, which means that logs can be delivered to the user quickly. PYTHONDONTWRITEBYTECODE
+# keeps Python from writing the .pyc files which are unnecessary in this case.
+ENV PYTHONUNBUFFERED=TRUE
+ENV PYTHONDONTWRITEBYTECODE=TRUE
+
+WORKDIR /opt/program
+
+# Install ComfyUI
+RUN git clone https://github.com/comfyanonymous/ComfyUI.git && \
+    cd /opt/program/ComfyUI && \
+    git checkout 38b7ac6e269e6ecc5bdd6fefdfb2fb1185b09c9d
+RUN pip3 install --no-cache-dir -r /opt/program/ComfyUI/requirements.txt
+
+# Copy extra_model_paths so that ComfyUI load the model artifacts
+COPY extra_model_paths.yaml /opt/program/ComfyUI/
+
+# Copy contents of code/ dir to /opt/program
+COPY code/ /opt/program/
+RUN pip3 install --no-cache-dir -r /opt/program/requirements.txt
+
+# Expose port 8080 for sagemaker inference
+EXPOSE 8080
+ENTRYPOINT ["python3"]
+CMD [ "serve" ]

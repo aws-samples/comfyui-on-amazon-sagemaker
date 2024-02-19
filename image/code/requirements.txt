@@ -1,0 +1,5 @@
+gunicorn
+Flask
+requests
+websocket-client
+pillow
