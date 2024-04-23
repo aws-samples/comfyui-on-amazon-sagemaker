@@ -1,7 +1,9 @@
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
 
 # Install necessary dependencies along with nginx
-RUN apt-get update && apt-get -y install --no-install-recommends \
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get -y install --no-install-recommends \
     git \
     python3.10 \
     python3-pip \
