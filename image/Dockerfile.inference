@@ -8,6 +8,7 @@ RUN apt-get update && \
     python3.10 \
     python3-pip \
     nginx \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --no-cache-dir torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
@@ -33,7 +34,10 @@ COPY extra_model_paths.yaml /opt/program/ComfyUI/
 COPY code/ /opt/program/
 RUN pip3 install --no-cache-dir -r /opt/program/requirements.txt
 
+#checkov:skip=CKV_DOCKER_3:SageMaker expects all containers to run with root users
+
 # Expose port 8080 for sagemaker inference
 EXPOSE 8080
 ENTRYPOINT ["python3"]
 CMD [ "serve" ]
+HEALTHCHECK CMD curl -fs http://localhost:8080 || exit 1

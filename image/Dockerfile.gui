@@ -7,7 +7,8 @@ RUN apt-get update && \
     git \
     python3.10 \
     python3-pip \
-    nginx \    
+    nginx \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip3 install --no-cache-dir torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
@@ -26,6 +27,13 @@ RUN git clone https://github.com/comfyanonymous/ComfyUI.git && \
     git checkout 38b7ac6e269e6ecc5bdd6fefdfb2fb1185b09c9d
 RUN pip3 install --no-cache-dir -r /opt/program/ComfyUI/requirements.txt
 
+# Run as non-root user
+RUN useradd --system --create-home --home-dir /home/ubuntu --shell /bin/bash -g root -u 10001 ubuntu && \
+    chown -R ubuntu:root /opt/program
+
+USER ubuntu
+
 # Expose port 8188 for ComfyUI GUI
 EXPOSE 8188
 CMD ["python3", "-u", "/opt/program/ComfyUI/main.py", "--listen", "0.0.0.0", "--port", "8188"]
+HEALTHCHECK CMD curl -fs http://localhost:8188 || exit 1
