@@ -19,12 +19,15 @@ RUN pip3 install --no-cache-dir torch torchvision torchaudio --extra-index-url h
 ENV PYTHONUNBUFFERED=TRUE
 ENV PYTHONDONTWRITEBYTECODE=TRUE
 
+# Git reference of ComfyUI (can be a branch name or commit id)
+ARG COMFYUI_GIT_REF=master
+
 WORKDIR /opt/program
 
 # Install ComfyUI
 RUN git clone https://github.com/comfyanonymous/ComfyUI.git && \
     cd /opt/program/ComfyUI && \
-    git checkout 38b7ac6e269e6ecc5bdd6fefdfb2fb1185b09c9d
+    git checkout $COMFYUI_GIT_REF
 RUN pip3 install --no-cache-dir -r /opt/program/ComfyUI/requirements.txt
 
 # Copy extra_model_paths so that ComfyUI load the model artifacts
