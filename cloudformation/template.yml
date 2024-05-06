@@ -1,0 +1,206 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  CloudFormation template for ComfyUI on Amazon SageMaker
+
+Parameters:
+  AppName:
+    Type: String
+    Description: Application name prefix for resources provisioned
+    Default: comfyui
+  DeploymentBucket:
+    Type: String
+    Description: Bucket name of deployment files
+    Default: comfyui-on-sagemaker
+  LambdaPackageS3Key:
+    Type: String
+    Description: S3 object key of Lambda function package
+    Default: lambda.zip
+  ModelVersion:
+    Type: String
+    Description: Model version
+    Default: default
+  ModelDataS3Key:
+    Type: String
+    Description: S3 object key of model data
+    Default: model-data-comfyui-default.tgz
+  ModelEcrImage:
+    Type: String
+    Description: Image location where the inference code image is stored in Amazon ECR
+    Default: comfyui-inference:default
+  SageMakerInstanceType:
+    Type: String
+    Description: Instance type of SageMaker endpoint
+    AllowedValues:
+      - ml.g4dn.xlarge
+      - ml.g4dn.2xlarge
+      - ml.g5.xlarge
+      - ml.g5.2xlarge
+    Default: ml.g4dn.xlarge
+  SageMakerAutoScaling:
+    Type: String
+    Description: Whether to enable auto scaling for the SageMaker endpoint
+    AllowedValues:
+      - true
+      - false
+    Default: false
+  LambdaUrlAuthType:
+    Type: String
+    Description: Authentication type for the Lambda URL
+    AllowedValues:
+      - NONE
+      - AWS_IAM
+    Default: AWS_IAM
+
+Conditions:
+  LambdaUrlAuthTypeIsNone: !Equals
+    - !Ref LambdaUrlAuthType
+    - NONE
+  EnableAutoScaling: !Equals
+    - !Ref SageMakerAutoScaling
+    - true
+
+Resources:
+  ComfyUIModelExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: !Sub "${AppName}-sagemaker-model-execution-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
+  ComfyUIModel:
+    Type: "AWS::SageMaker::Model"
+    Properties:
+      EnableNetworkIsolation: true
+      ExecutionRoleArn: !GetAtt ComfyUIModelExecutionRole.Arn
+      ModelName: !Sub "${AppName}-${ModelVersion}"
+      PrimaryContainer:
+        Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ModelEcrImage}"
+        ModelDataUrl: !Sub s3://${DeploymentBucket}/${ModelDataS3Key}
+  ComfyUIEndpointConfig:
+    Type: "AWS::SageMaker::EndpointConfig"
+    Properties:
+      EndpointConfigName: !Sub "${AppName}-${ModelVersion}"
+      ProductionVariants:
+        - VariantName: !Sub "${AppName}-${ModelVersion}"
+          ModelName: !GetAtt ComfyUIModel.ModelName
+          ContainerStartupHealthCheckTimeoutInSeconds: 600
+          InitialInstanceCount: 1
+          InstanceType: !Sub "${SageMakerInstanceType}"
+          RoutingConfig:
+            RoutingStrategy: LEAST_OUTSTANDING_REQUESTS
+  ComfyUIEndpoint:
+    Type: "AWS::SageMaker::Endpoint"
+    Properties:
+      EndpointName: !Sub "${AppName}"
+      EndpointConfigName: !GetAtt ComfyUIEndpointConfig.EndpointConfigName
+  ComfyUIScalingPolicy:
+    Type: "AWS::ApplicationAutoScaling::ScalingPolicy"
+    DependsOn: ComfyUIEndpoint
+    Condition: EnableAutoScaling
+    Properties:
+      PolicyName: !Sub scale-in-scale-out-policy
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ComfyUIScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 10000
+        CustomizedMetricSpecification:
+          MetricName: Duration
+          Namespace: AWS/Lambda
+          Dimensions:
+            - Name: FunctionName
+              Value: !Ref ComfyUIFunction
+          Statistic: Average
+        ScaleInCooldown: 1800
+        ScaleOutCooldown: 1800
+        DisableScaleIn: false
+  ComfyUIScalableTarget:
+    Type: "AWS::ApplicationAutoScaling::ScalableTarget"
+    DependsOn: ComfyUIEndpoint
+    Condition: EnableAutoScaling
+    Properties:
+      MaxCapacity: 3
+      MinCapacity: 1
+      ResourceId: !Sub "endpoint/${ComfyUIEndpoint.EndpointName}/variant/${AppName}-${ModelVersion}"
+      ScalableDimension: sagemaker:variant:DesiredInstanceCount
+      ServiceNamespace: sagemaker
+      # Optional: Uncomment below to define autoscaling capacity according to schedule
+      # ScheduledActions:
+      #   - ScheduledActionName: scheduled-action-at-1800-utc
+      #     ScalableTargetAction:
+      #       MaxCapacity: 1
+      #       MinCapacity: 1
+      #     Schedule: cron(0 18 * * ? *)
+      #   - ScheduledActionName: scheduled-action-at-0400-utc
+      #     ScalableTargetAction:
+      #       MaxCapacity: 3
+      #       MinCapacity: 1
+      #     Schedule: cron(0 4 * * ? *)
+  ComfyUIFunctionRole:
+    Type: "AWS::IAM::Role"
+    DependsOn: ComfyUIEndpoint
+    Properties:
+      RoleName: !Sub "${AppName}-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${AppName}-lambda-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sagemaker:InvokeEndpoint
+                Resource: !Ref ComfyUIEndpoint
+                #Resource: !Sub "arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:endpoint/${AppName}"
+  ComfyUIFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      FunctionName: !Sub "${AppName}-lambda"
+      Handler: lambda_function.lambda_handler
+      Role: !GetAtt ComfyUIFunctionRole.Arn
+      Runtime: python3.12
+      MemorySize: 256
+      Timeout : 120
+      Architectures:
+        - arm64
+      Code:
+        S3Bucket: !Sub "${DeploymentBucket}"
+        S3Key: !Sub "${LambdaPackageS3Key}"
+      Environment:
+        Variables:
+          ENDPOINT_NAME: !GetAtt ComfyUIEndpoint.EndpointName
+  ComfyUIFunctionUrl:
+    Type: "AWS::Lambda::Url"
+    Properties:
+      AuthType: !If [LambdaUrlAuthTypeIsNone, "NONE", "AWS_IAM"]
+      InvokeMode: BUFFERED
+      TargetFunctionArn: !GetAtt ComfyUIFunction.Arn
+  ComfyUIFunctionUrlPermission:
+    Type: "AWS::Lambda::Permission"
+    Condition: LambdaUrlAuthTypeIsNone
+    Properties:
+      Action: lambda:InvokeFunctionUrl
+      FunctionName: !Ref ComfyUIFunction
+      FunctionUrlAuthType: "NONE"
+      Principal: "*"
+
+Outputs:
+  ComfyUIFunctionUrl:
+    Description: Function URL of invoke Lambda function
+    Value: !GetAtt ComfyUIFunctionUrl.FunctionUrl
+  ComfyUIEndpoint:
+    Description: Arn of SageMaker inference endpoint
+    Value: !Ref ComfyUIEndpoint

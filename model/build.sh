@@ -1,29 +1,55 @@
-#!/bin/bash -x
-# script to create a model artifact folder for ComfyUI
+#!/bin/bash
+# script to create a model artifact for SageMaker inference
 
-# modify variables for your environment
-TARGET_DIR="model-data"
-TARGET_FILE="model-data.tgz"
-S3_PATH="s3://<YOUR AWS BUCKET>/model-data-comfyui-sd.tgz"
+set -e # Exit on error
+set -u # Exit on undefined variable
+# set -x # Print commands
+
+# target folder for downloading model artifact
+TARGET_DIR="model-artifact"
+
+# target file for tar-gzip archive of model artifact
+TARGET_FILE="model-artifact.tgz"
+
+show_usage() {
+    echo "Usage: $0 [s3://path/to/s3/object]"
+    exit 1
+}
+# s3 upload path (optional)
+S3_PATH=""
+if [ "$#" -gt 1 ]; then
+    show_usage
+elif [ "$#" -eq 1 ]; then
+    if [[ "$1" == s3://* ]]; then
+        S3_PATH="$1"
+    else
+        show_usage
+    fi
+fi
 
 # initialize empty folder structure
-mkdir -p ${TARGET_DIR}
-mkdir -p ${TARGET_DIR}/checkpoints
-mkdir -p ${TARGET_DIR}/clip
-mkdir -p ${TARGET_DIR}/clip_vision
-mkdir -p ${TARGET_DIR}/configs
-mkdir -p ${TARGET_DIR}/controlnet
-mkdir -p ${TARGET_DIR}/embeddings
-mkdir -p ${TARGET_DIR}/loras
-mkdir -p ${TARGET_DIR}/upscale_models
-mkdir -p ${TARGET_DIR}/vae
+mkdir -p "${TARGET_DIR}"
+DIRS=(checkpoints clip clip_vision configs controlnet embeddings loras upscale_models vae)
+for dir in "${DIRS[@]}"
+do
+    mkdir -p "${TARGET_DIR}/${dir}"
+done
 
 # download models that you want to include
-wget -nc 'https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors' -P ${TARGET_DIR}/checkpoints
-wget -nc 'https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt' -P ${TARGET_DIR}/checkpoints
+# stable-diffusion-xl-base-1.0 
+wget -nc 'https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors' -P "${TARGET_DIR}/checkpoints"
 
+if [ -z "${S3_PATH}" ]; then
+    exit 0
+fi
+echo "Creating ${TARGET_FILE}..."
 # tar gzip the folder and upload to S3
-# gzip in tar is slow, use pigz to speed up compression on multiple cores
-tar -cv -C ${TARGET_DIR} . | pigz -1 > ${TARGET_FILE}
-# tar -czvf ${TARGET_FILE} -C ${TARGET_DIR} .
-aws s3 cp ${TARGET_FILE} ${S3_PATH}
+if [ -n "$(which pigz)" ]; then
+    # use pigz to speed up compression on multiple cores
+    tar -cv -C "${TARGET_DIR}" . | pigz -1 > "${TARGET_FILE}"
+else
+    # tar is slower
+    tar -czvf ${TARGET_FILE} -C ${TARGET_DIR} .
+fi
+echo "Uploading ${S3_PATH}..."
+aws s3 cp "${TARGET_FILE}" "${S3_PATH}"

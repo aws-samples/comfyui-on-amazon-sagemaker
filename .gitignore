@@ -1,0 +1,6 @@
+model-artifact/
+model-artifact*.tar.gz
+model-artifact*.tgz
+lambda/lambda.zip
+*.zip
+.DS_Store
