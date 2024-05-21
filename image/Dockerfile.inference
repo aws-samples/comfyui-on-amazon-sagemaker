@@ -13,9 +13,10 @@ RUN apt-get update && \
 
 RUN pip3 install --no-cache-dir torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
 
-# Set some environment variables. PYTHONUNBUFFERED keeps Python from buffering our standard
+
+# Set some environment variables. PYTHONUNBUFFERED prevents Python buffering our standard
 # output stream, which means that logs can be delivered to the user quickly. PYTHONDONTWRITEBYTECODE
-# keeps Python from writing the .pyc files which are unnecessary in this case.
+# stops Python creating the .pyc files which are unnecessary in this cast.
 ENV PYTHONUNBUFFERED=TRUE
 ENV PYTHONDONTWRITEBYTECODE=TRUE
 

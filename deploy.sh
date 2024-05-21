@@ -55,7 +55,12 @@ prepare_env() {
     AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-$(aws configure get region || true)}"
     if [ -z "${AWS_DEFAULT_REGION}" ]; then
         # get AWS region from EC2 metadata
-        TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+        TOKEN=$(curl --max-time 10 -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+        if [ $? -ne 0 ]
+        then
+            echo "Please export AWS_DEFAULT_REGION manually or configure it in your default AWS Cli profile."
+            exit 1
+        fi
         AWS_DEFAULT_REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region -H "X-aws-ec2-metadata-token: $TOKEN" || true)
     fi
     export AWS_DEFAULT_REGION
