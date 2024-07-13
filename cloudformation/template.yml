@@ -17,7 +17,7 @@ Parameters:
     Default: lambda.zip
   ModelVersion:
     Type: String
-    Description: Model version
+    Description: Suffix for SageMaker model and endpoint config
     Default: default
   ModelDataS3Key:
     Type: String
@@ -199,7 +199,7 @@ Resources:
 
 Outputs:
   ComfyUIFunctionUrl:
-    Description: Function URL of invoke Lambda function
+    Description: Function URL of Lambda function
     Value: !GetAtt ComfyUIFunctionUrl.FunctionUrl
   ComfyUIEndpoint:
     Description: Arn of SageMaker inference endpoint

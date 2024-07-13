@@ -13,6 +13,7 @@ client_id = None
 
 # environment variable to set jpeg quality
 JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", 90))
+
 # environment variable to print HTTP header of requests
 DEBUG_HEADER = os.getenv("DEBUG_HEADER", "False").lower() in ("true", "1", "t")
 
@@ -32,7 +33,7 @@ def ping():
         flask.Response: A response object containing the status code and mimetype.
     """
     # Check if the local server is responding, set the status accordingly
-    r = requests.head(URL_PING)
+    r = requests.head(URL_PING, timeout=5)
     status = 200 if r.ok else 500
 
     # Return the response with the determined status code
@@ -58,22 +59,18 @@ def invocations():
     if ws is None or client_id is None:
         client_id = str(uuid.uuid4())
         ws = websocket.WebSocket()
-        ws.connect("ws://{}/ws?clientId={}".format(SERVER_ADDRESS, client_id))
+        ws.connect("ws://{}/ws?clientId={}".format(SERVER_ADDRESS, client_id))  # nosemgrep: detect-insecure-websocket
 
     if DEBUG_HEADER:
         print(flask.request.headers)
-
-    prefer_jpeg = False
-    # convert to jpeg is allowed from accept header
-    if "image/jpeg" in flask.request.accept_mimetypes:
-        prefer_jpeg = True
 
     # get prompt from request body regardless of content type
     prompt = flask.request.get_json(silent=True, force=True)
     image_data = prompt_for_image_data(ws, client_id, prompt)
 
-    # convert png to jpeg
-    if prefer_jpeg and image_data.get("content_type") == "image/png":
+    # convert png to jpeg if it is allowed from accept header
+    accept_jpeg = "image/jpeg" in flask.request.accept_mimetypes
+    if accept_jpeg and image_data.get("content_type") == "image/png":
         png_image = Image.open(io.BytesIO(image_data.get("data")))
         rgb_image = png_image.convert("RGB")
         jpeg_bytes = io.BytesIO()
@@ -82,11 +79,11 @@ def invocations():
         image_data["content_type"] = "image/jpeg"
 
     return flask.Response(
-        response=image_data.get("data", "empty"),
+        response=image_data.get("data", ""),
         status=200,
         mimetype=image_data.get("content_type", "text/plain"),
     )
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    app.run(host="0.0.0.0", port=8080)

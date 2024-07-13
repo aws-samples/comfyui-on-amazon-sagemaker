@@ -6,7 +6,12 @@ set -u # Exit on undefined variable
 
 # Generate a hash for lambda folder content
 lambda_hash() {
-    tar -cf - lambda | md5sum | head -c 6
+    # --sort=name   # requires GNU Tar 1.28+
+    tar \
+     --mtime="@0" \
+     --owner=0 --group=0 --numeric-owner \
+     --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
+     -cf - lambda | md5sum | head -c 6
 }
 
 # Set global variables for deployment, to be run after prepare_env functions
@@ -21,7 +26,7 @@ configure() {
     # Filename of lambda package on S3 bucket used during CloudFormation deployment
     LAMBDA_FILE="lambda-$(lambda_hash).zip"
 
-    # Identifier of model artifact
+    # Identifier of SageMaker model and endpoint config
     MODEL_VERSION="sample"
 
     # Filename of model artifact on S3 bucket
@@ -40,12 +45,12 @@ configure() {
     IMAGE_URI="${IMAGE_REGISTRY}/${IMAGE_REPO}:${IMAGE_TAG}"
 
     # Instance type of SageMaker endpoint
-    SAGEMAKER_INSTANCE_TYPE="ml.g4dn.xlarge"
+    SAGEMAKER_INSTANCE_TYPE="ml.g5.xlarge"
 
     # Whether to enable auto scaling for the SageMaker endpoint
     SAGEMAKER_AUTO_SCALING="false"
 
-    # Authentication type for the Lambda URL
+    # Authentication type for the Lambda URL (NONE or AWS_IAM)
     LAMBDA_URL_AUTH_TYPE="AWS_IAM"
 }
 
@@ -129,10 +134,8 @@ build_and_upload_model_artifact() {
 deploy_cloudformation() {
     # first pack lambda package and upload to S3 bucket
     cd lambda
-    rm -f lambda.zip
-    zip -r lambda.zip *
-    aws s3 cp lambda.zip "s3://$S3_BUCKET/lambda/$LAMBDA_FILE"
-    rm -f lambda.zip
+    zip -r $LAMBDA_FILE *
+    aws s3 cp "$LAMBDA_FILE" "s3://$S3_BUCKET/lambda/$LAMBDA_FILE"
     cd -
 
     # deploy cloudformation stack
