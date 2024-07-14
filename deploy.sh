@@ -19,6 +19,9 @@ configure() {
     # Application name prefix for resourceis provisioned (and also CloudFormation stack name)
     APP_NAME="comfyui"
 
+    # Git reference of ComfyUI (should be a commit id instead of a branch name for production)
+    COMFYUI_GIT_REF="v0.0.1"
+
     # S3 bucket for deployment files (model artifact and Lambda package)
     # Note: Adjust ComfyUIModelExecutionRole in template.yaml to grant S3 related permissions if the bucket name does not contain "SageMaker", "Sagemaker" or "sagemaker".
     S3_BUCKET="comfyui-sagemaker-${AWS_ACCOUNT_ID}-${AWS_DEFAULT_REGION}"
@@ -118,7 +121,7 @@ login_ecr() {
 # Build and push image for inference
 build_and_push_image() {
     cd image
-    docker build -t ${IMAGE_URI} . -f Dockerfile.inference
+    docker build -t ${IMAGE_URI} . -f Dockerfile.inference --build-arg="COMFYUI_GIT_REF=${COMFYUI_GIT_REF}"
     docker push ${IMAGE_URI}
     cd -
 }
