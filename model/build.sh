@@ -29,7 +29,7 @@ fi
 
 # initialize empty folder structure
 mkdir -p "${TARGET_DIR}"
-DIRS=(checkpoints clip clip_vision configs controlnet embeddings loras upscale_models vae)
+DIRS=(checkpoints clip clip_vision configs controlnet embeddings loras upscale_models vae gligen custom_nodes)
 for dir in "${DIRS[@]}"
 do
     mkdir -p "${TARGET_DIR}/${dir}"

@@ -13,6 +13,8 @@ sagemaker_inference:
     loras: loras/
     upscale_models: upscale_models/
     vae: vae/
+    gligen: gligen
+    custom_nodes: custom_nodes
 
 #config for a1111 ui
 #all you have to do is change the base_path to where yours is installed
