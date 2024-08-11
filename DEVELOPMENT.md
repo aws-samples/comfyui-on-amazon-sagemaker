@@ -13,7 +13,7 @@ cd ./model
 
 
 ## Inference Image
-This section describes the container that runs your inference code for hosting services. Read [AWS documentation](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html) for how SageMake works.
+This section describes the container that runs your inference code for hosting services. Read [AWS documentation](https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-inference-code.html) for how SageMaker works.
 
 ### Highlights
  - ComfyUI is running in container and listening on `127.0.0.1:8188`. The inference code will access to the local ComfyUI server by REST api and WebSocket.

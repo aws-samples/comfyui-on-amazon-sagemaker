@@ -20,10 +20,21 @@ There is a Lambda function to invoke SageMaker inference endpoint (which is runn
 
 ## Deployment Guide
 ### Environments
-The easiest way is to launch an EC2 instance of `g5.xlarge` running AMI `Deep Learning OSS Nvidia Driver AMI GPU PyTorch 2.0.1 (Amazon Linux 2)`. If you do not need to run the GUI locally, you can choose lower cost non-gpu instances such as `t3.xlarge`. [AWS Cloud9](https://console.aws.amazon.com/cloud9control) or local machine also work but make sure the followings are installed.
+The easiest way is to launch an EC2 instance of `g5.xlarge` running AMI `Deep Learning OSS Nvidia Driver AMI GPU PyTorch 2.3.0 (Amazon Linux 2)`. Connect to the instane using **Session Manager**, then add user to group `docker` by running the following command.
+
+```bash
+sudo usermod -a -G docker $(whoami)
+```
+
+Disconnect and connect again for updated group membership to take effects.
+
+> - If you do not run ComfyUI locally, non-gpu instance such as `t3.xlarge` also works.
+
+[AWS Cloud9](https://console.aws.amazon.com/cloud9control) or local machine also work but make sure the followings are installed properly.
 * awscli
 * Docker
 * pigz
+
 
 ### Quick Start
 **Step 1** - Clone the project:
