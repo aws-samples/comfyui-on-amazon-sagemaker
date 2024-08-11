@@ -4,6 +4,7 @@ This project demonstrates how to generate images using Stable Diffusion by hosti
 [ComfyUI](https://github.com/comfyanonymous/ComfyUI) is one of the most popular GUI and backend that allows you to generate images using Stable Diffusion. Some of the key features:
 - supports complex Stable Diffusion workflows using GUI without needing to code anything
 - supports SD1.x, SD2.x, SDXL and SD3
+- supports [Flux.1 models](https://blackforestlabs.ai/announcing-black-forest-labs/) from Black Forest Labs
 - can load ckpt, safetensors and diffusers models
 - supports Embeddings, Hypernetworks, Loras, Hires fix
 
@@ -29,6 +30,7 @@ sudo usermod -a -G docker $(whoami)
 Disconnect and connect again for updated group membership to take effects.
 
 > - If you do not run ComfyUI locally, non-gpu instance such as `t3.xlarge` also works.
+> - If you want to run FLUX.1 model, use at least `g5.2xlarge` or above for fp8 version. use at least `g5.4xlarge` for fp16 version.
 
 [AWS Cloud9](https://console.aws.amazon.com/cloud9control) or local machine also work but make sure the followings are installed properly.
 * awscli
@@ -43,9 +45,14 @@ git clone https://github.com/aws-samples/comfyui-on-amazon-sagemaker.git
 ```
 
 **Step 2** - Customize the following files (optional):
-* **[deploy.sh](deploy.sh)** - configurations
+* **[deploy.sh](deploy.sh)** - deployment configurations
 * **[model/build.sh](model/build.sh)** - models to include (SDXL 1.0 is downloaded by default)
-* **[lambda/workflow/workflow_api.json](lambda/workflow/workflow_api.json)** - workflow json for ComfyUI
+* **[lambda/workflow/](lambda/workflow/)** - workflow api folder for ComfyUI
+
+> **FLUX.1** - If you want to try FLUX.1 models:
+>   - uncomment [here](model/build.sh#L52) or [here](model/build.sh#L56) to download the models.
+>   - update [here](deploy.sh#L51) to change `SAGEMAKER_INSTANCE_TYPE` to at least `ml.g5.2xlarge`.
+>   - use corresponding prompt file `flux1-dev-fp8-ckpt.json` or `flux1-schnell-fp8-ckpt.json` in the API request.
 
 **Step 3** - Run [deploy.sh](deploy.sh). It usually takes 20 to 30 minutes to complete.
 ```bash

@@ -25,8 +25,6 @@ def update_seed(prompt_dict, seed=None):
     Returns:
         dict: The updated prompt dictionary with the seed value set for the KSampler node.
     """
-    import random
-
     # set seed for KSampler node
     for i in prompt_dict:
         if "inputs" in prompt_dict[i]:
