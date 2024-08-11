@@ -35,7 +35,21 @@ Parameters:
       - ml.g4dn.2xlarge
       - ml.g5.xlarge
       - ml.g5.2xlarge
-    Default: ml.g4dn.xlarge
+      - ml.g5.4xlarge
+      - ml.g5.8xlarge
+      - ml.g5.16xlarge
+      - ml.g5.12xlarge
+      - ml.g5.24xlarge
+      - ml.g5.48xlarge
+      - ml.g6.xlarge
+      - ml.g6.2xlarge
+      - ml.g6.4xlarge
+      - ml.g6.8xlarge
+      - ml.g6.16xlarge
+      - ml.g6.12xlarge
+      - ml.g6.24xlarge
+      - ml.g6.48xlarge
+    Default: ml.g5.xlarge
   SageMakerAutoScaling:
     Type: String
     Description: Whether to enable auto scaling for the SageMaker endpoint
