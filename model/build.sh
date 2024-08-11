@@ -39,9 +39,10 @@ done
 # stable-diffusion-xl-base-1.0 
 wget -nc 'https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors' -P "${TARGET_DIR}/checkpoints"
 
-cd ${TARGET_DIR}/custom_nodes
-[[ -e ComfyUI-Manager ]] || git clone https://github.com/ltdrdata/ComfyUI-Manager.git && (cd ComfyUI-Manager ; git reset --hard 90ae9af6ed2f80343defedb92ac61c79d4dbdc33)
-cd -
+# ComfyUI-Manager - extension to manage custom nodes
+# cd ${TARGET_DIR}/custom_nodes
+# [[ -e ComfyUI-Manager ]] || git clone https://github.com/ltdrdata/ComfyUI-Manager.git && (cd ComfyUI-Manager && git fetch && git checkout 2.48.6)
+# cd -
 
 if [ -z "${S3_PATH}" ]; then
     exit 0
