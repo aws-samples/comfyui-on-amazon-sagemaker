@@ -59,14 +59,24 @@ configure() {
 
 # Collect variables from AWS environment
 prepare_env() {
+    ARCH=$(uname -m)
+    if [ "${ARCH}" != "x86_64" ]; then
+        echo "Error: You must build on x86_64 architecture that matches SageMaker endpoint running"
+        exit 1
+    fi
+    SUPPORT_AMD64=$(docker buildx inspect --bootstrap | grep "^Platforms:" | grep -o -m1 "linux/amd64" | head -n1)
+    if [ -z "$SUPPORT_AMD64" ]; then
+        echo "Error: docker does not support platform linux/amd64"
+        echo "You may try running: docker run --privileged --rm tonistiigi/binfmt --install all"
+        exit 1
+    fi
     # get AWS region from AWS profile if not previously defined
     AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-$(aws configure get region || true)}"
     if [ -z "${AWS_DEFAULT_REGION}" ]; then
         # get AWS region from EC2 metadata
-        TOKEN=$(curl --max-time 10 -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-        if [ $? -ne 0 ]
-        then
-            echo "Please export AWS_DEFAULT_REGION manually or configure it in your default AWS Cli profile."
+        TOKEN=$(curl --max-time 10 -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" || true)
+        if [ -z "${TOKEN}" ]; then
+            echo "Error: AWS_DEFAULT_REGION is empty"
             exit 1
         fi
         AWS_DEFAULT_REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region -H "X-aws-ec2-metadata-token: $TOKEN" || true)
@@ -121,7 +131,12 @@ login_ecr() {
 # Build and push image for inference
 build_and_push_image() {
     cd image
-    docker build -t ${IMAGE_URI} . -f Dockerfile.inference --build-arg="COMFYUI_GIT_REF=${COMFYUI_GIT_REF}"
+    docker build \
+        --platform linux/amd64 \
+        -t ${IMAGE_URI} \
+        -f Dockerfile.inference \
+        --build-arg="COMFYUI_GIT_REF=${COMFYUI_GIT_REF}" \
+        .
     docker push ${IMAGE_URI}
     cd -
 }
@@ -156,6 +171,11 @@ deploy_cloudformation() {
         SageMakerInstanceType="$SAGEMAKER_INSTANCE_TYPE" \
         SageMakerAutoScaling="$SAGEMAKER_AUTO_SCALING" \
         LambdaUrlAuthType="$LAMBDA_URL_AUTH_TYPE"
+
+    aws cloudformation describe-stacks \
+        --stack-name "$APP_NAME" \
+        --query 'Stacks[0].Outputs[*].{OutputKey:OutputKey,OutputValue:OutputValue}' \
+        --output table
 }
 
 prepare_env
