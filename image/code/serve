@@ -10,8 +10,8 @@
 #
 # Parameter                Environment Variable              Default Value
 # ---------                --------------------              -------------
-# number of workers        INFERENCE_SERVER_WORKERS              the number of CPU cores
-# timeout                  INFERENCE_SERVER_TIMEOUT              60 seconds
+# number of workers        INFERENCE_SERVER_WORKERS          number of CPU cores
+# timeout                  INFERENCE_SERVER_TIMEOUT          70 seconds
 
 import multiprocessing
 import os
@@ -21,7 +21,7 @@ import sys
 
 cpu_count = multiprocessing.cpu_count()
 
-inference_server_timeout = os.environ.get("INFERENCE_SERVER_TIMEOUT", 60)
+inference_server_timeout = os.environ.get("INFERENCE_SERVER_TIMEOUT", 70)
 inference_server_workers = int(os.environ.get("INFERENCE_SERVER_WORKERS", cpu_count))
 
 
