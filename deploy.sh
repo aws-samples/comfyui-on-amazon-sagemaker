@@ -24,7 +24,8 @@ configure() {
 
     # S3 bucket for deployment files (model artifact and Lambda package)
     # Note: Adjust ComfyUIModelExecutionRole in template.yaml to grant S3 related permissions if the bucket name does not contain "SageMaker", "Sagemaker" or "sagemaker".
-    S3_BUCKET="comfyui-sagemaker-${AWS_ACCOUNT_ID}-${AWS_DEFAULT_REGION}"
+    # Note: The bucket must be owned by the deploying account; override S3_BUCKET if the default name is taken.
+    S3_BUCKET="${S3_BUCKET:-comfyui-sagemaker-${AWS_ACCOUNT_ID}-${AWS_DEFAULT_REGION}}"
 
     # Filename of lambda package on S3 bucket used during CloudFormation deployment
     LAMBDA_FILE="lambda-$(lambda_hash).zip"
@@ -106,19 +107,34 @@ prepare_ecr() {
     fi
 }
 
-# Create S3 bucket if not exist
+# Create S3 bucket if not exist, and ensure it is owned by this account
 prepare_s3() {
-    if aws s3 ls "s3://$S3_BUCKET" >/dev/null 2>&1; then
+    local err
+    if err=$(aws s3api head-bucket --bucket "$S3_BUCKET" --expected-bucket-owner "$AWS_ACCOUNT_ID" 2>&1); then
         echo "Bucket $S3_BUCKET exists"
         return
     fi
+    if ! echo "$err" | grep -q "(404)"; then
+        echo "Error: Bucket $S3_BUCKET exists but is not owned by account $AWS_ACCOUNT_ID (or is inaccessible)"
+        echo "Set S3_BUCKET to a different bucket name and retry"
+        exit 1
+    fi
 
     echo "Bucket $S3_BUCKET does not exist. Creating it..."
-    # Create the bucket
-    aws s3 mb "s3://$S3_BUCKET" --region "$AWS_DEFAULT_REGION"
+    # Create the bucket (us-east-1 does not accept a LocationConstraint)
+    if [ "$AWS_DEFAULT_REGION" = "us-east-1" ]; then
+        aws s3api create-bucket --bucket "$S3_BUCKET" --region "$AWS_DEFAULT_REGION"
+    else
+        aws s3api create-bucket --bucket "$S3_BUCKET" --region "$AWS_DEFAULT_REGION" \
+            --create-bucket-configuration LocationConstraint="$AWS_DEFAULT_REGION"
+    fi
+
+    # Block all public access
+    aws s3api put-public-access-block --bucket "$S3_BUCKET" --expected-bucket-owner "$AWS_ACCOUNT_ID" \
+        --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 
     # Enable bucket encryption with AWS-managed KMS key
-    aws s3api put-bucket-encryption --bucket "$S3_BUCKET" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "aws:kms", "KMSMasterKeyID": "alias/aws/s3"}}]}'
+    aws s3api put-bucket-encryption --bucket "$S3_BUCKET" --expected-bucket-owner "$AWS_ACCOUNT_ID" --server-side-encryption-configuration '{"Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "aws:kms", "KMSMasterKeyID": "alias/aws/s3"}}]}'
 
     echo "Bucket created: $S3_BUCKET"
 }
@@ -144,7 +160,7 @@ build_and_push_image() {
 # Pack and upload model artifact to S3
 build_and_upload_model_artifact() {
     cd model
-    ./build.sh "s3://$S3_BUCKET/$MODEL_FILE"
+    EXPECTED_BUCKET_OWNER="$AWS_ACCOUNT_ID" ./build.sh "s3://$S3_BUCKET/$MODEL_FILE"
     cd -
 }
 
@@ -153,7 +169,7 @@ deploy_cloudformation() {
     # first pack lambda package and upload to S3 bucket
     cd lambda
     zip -r $LAMBDA_FILE *
-    aws s3 cp "$LAMBDA_FILE" "s3://$S3_BUCKET/lambda/$LAMBDA_FILE"
+    aws s3api put-object --bucket "$S3_BUCKET" --key "lambda/$LAMBDA_FILE" --body "$LAMBDA_FILE" --expected-bucket-owner "$AWS_ACCOUNT_ID"
     cd -
 
     # deploy cloudformation stack

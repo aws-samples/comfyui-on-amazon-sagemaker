@@ -84,5 +84,13 @@ else
     # tar is slower
     tar -czvf ${TARGET_FILE} -C ${TARGET_DIR} .
 fi
+# only upload to a bucket owned by the expected account (defaults to the current caller account)
+EXPECTED_BUCKET_OWNER="${EXPECTED_BUCKET_OWNER:-$(aws sts get-caller-identity --query "Account" --output text)}"
+S3_BUCKET="${S3_PATH#s3://}"
+S3_BUCKET="${S3_BUCKET%%/*}"
+if ! aws s3api head-bucket --bucket "${S3_BUCKET}" --expected-bucket-owner "${EXPECTED_BUCKET_OWNER}" >/dev/null 2>&1; then
+    echo "Error: Bucket ${S3_BUCKET} is not owned by account ${EXPECTED_BUCKET_OWNER} (or is inaccessible)"
+    exit 1
+fi
 echo "Uploading ${S3_PATH}..."
 aws s3 cp "${TARGET_FILE}" "${S3_PATH}"
